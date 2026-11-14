@@ -1,0 +1,4 @@
+streamlit>=1.40
+supabase>=2.9
+segno>=1.6
+pandas>=2.0
