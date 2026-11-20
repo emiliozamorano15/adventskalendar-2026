@@ -40,43 +40,59 @@ begin
   return json_build_object('ok', true, 'bonus_paid', false);
 end $$;
 
--- Atomic purchase. Returns json {ok, reason, purchase_id}.
--- shared scope: one pool of `stock` for all kids, at most `per_kid_limit` each.
--- per_kid scope: every kid can buy up to `stock`.
-create or replace function buy_item(p_kid uuid, p_item int)
+-- Atomic checkout. p_items holds one item id per piece, so array[3, 3, 5] buys two of item 3 and one of item 5.
+-- Each item has `stock` pieces for all kids together and at most `per_kid_limit` per kid.
+-- Every check runs before the first insert, so a refused cart writes nothing.
+-- Returns json {ok, reason, item_id, cost}.
+drop function if exists buy_item(uuid, int);   -- single-item predecessor
+create or replace function buy_cart(p_kid uuid, p_items int[])
 returns json language plpgsql security definer set search_path = public as $$
-declare it shop_items%rowtype; bal int; mine int; total int; cap int; pid uuid;
+declare it record; bal int; cost int := 0;
 begin
-  select * into it from shop_items where id = p_item and active for update;      -- lock item
-  if not found then return json_build_object('ok', false, 'reason', 'not_found'); end if;
-  perform 1 from kids where id = p_kid for update;                                -- lock kid
+  perform 1 from kids where id = p_kid for update;                                      -- one checkout per kid at a time
+  perform 1 from shop_items where id = any(p_items) order by id for update;             -- id order: two carts can't deadlock
+  for it in
+    select c.item_id, c.qty, i.price, i.stock, i.per_kid_limit, i.active,
+           count(p.id) filter (where p.status <> 'cancelled') as sold,
+           count(p.id) filter (where p.status <> 'cancelled' and p.kid_id = p_kid) as mine
+    from (select x as item_id, count(*) as qty from unnest(p_items) x group by x) c
+    left join shop_items i on i.id = c.item_id
+    left join purchases p on p.item_id = c.item_id
+    group by c.item_id, c.qty, i.price, i.stock, i.per_kid_limit, i.active
+  loop
+    if it.price is null or not it.active then
+      return json_build_object('ok', false, 'reason', 'not_found', 'item_id', it.item_id);
+    end if;
+    if it.sold + it.qty > it.stock then
+      return json_build_object('ok', false, 'reason', 'sold_out', 'item_id', it.item_id);
+    end if;
+    if it.mine + it.qty > it.per_kid_limit then
+      return json_build_object('ok', false, 'reason', 'limit', 'item_id', it.item_id);
+    end if;
+    cost := cost + it.price * it.qty;
+  end loop;
   select coalesce(sum(amount), 0) into bal from ledger where kid_id = p_kid;
-  if bal < it.price then return json_build_object('ok', false, 'reason', 'no_coins'); end if;
-  select count(*) filter (where kid_id = p_kid), count(*) into mine, total
-    from purchases where item_id = p_item and status <> 'cancelled';
-  if it.stock_scope = 'shared' and total >= it.stock then
-    return json_build_object('ok', false, 'reason', 'sold_out');
-  end if;
-  cap := case it.stock_scope when 'shared' then it.per_kid_limit else it.stock end;   -- not inline: plpgsql IF stops at the first THEN
-  if mine >= cap then
-    return json_build_object('ok', false, 'reason', 'limit');
-  end if;
-  insert into purchases(kid_id, item_id, price_paid) values (p_kid, p_item, it.price) returning id into pid;
-  insert into ledger(kid_id, amount, reason, ref) values (p_kid, -it.price, 'purchase', pid::text);
-  return json_build_object('ok', true, 'purchase_id', pid);
+  if bal < cost then return json_build_object('ok', false, 'reason', 'no_coins'); end if;
+  with bought as (
+    insert into purchases(kid_id, item_id, price_paid)
+    select p_kid, i.id, i.price from unnest(p_items) x join shop_items i on i.id = x
+    returning id, price_paid
+  )
+  insert into ledger(kid_id, amount, reason, ref) select p_kid, -price_paid, 'purchase', id::text from bought;
+  return json_build_object('ok', true, 'cost', cost);
 end $$;
 
--- Cancel a purchase with refund (admin).
+-- Cancel an open purchase with refund (admin). A requested voucher counts as open.
 create or replace function cancel_purchase(p_purchase uuid)
 returns json language plpgsql security definer set search_path = public as $$
 declare p purchases%rowtype;
 begin
   select * into p from purchases where id = p_purchase for update;
-  if not found or p.status <> 'owned' then return json_build_object('ok', false); end if;
+  if not found or p.status not in ('owned', 'requested') then return json_build_object('ok', false); end if;
   update purchases set status = 'cancelled' where id = p_purchase;
   insert into ledger(kid_id, amount, reason, ref) values (p.kid_id, p.price_paid, 'refund', p_purchase::text);
   return json_build_object('ok', true);
 end $$;
 
 -- Lock the RPCs to the service role.
-revoke execute on function claim_day, record_coop_solve, buy_item, cancel_purchase from public, anon, authenticated;
+revoke execute on function claim_day, record_coop_solve, buy_cart, cancel_purchase from public, anon, authenticated;

@@ -3,37 +3,40 @@
 begin;
 do $$
 declare
-  a uuid; b uuid; s1 int; s2 int; pk int; pricey int; coop int; std int; fut int; pid uuid;
+  a uuid; b uuid; s1 int; s2 int; pricey int; off int; coop int; std int; fut int; pid uuid;
   bal_a int;
 begin
   insert into kids(name, pin_hash) values ('__test_a', 'x') returning id into a;
   insert into kids(name, pin_hash) values ('__test_b', 'x') returning id into b;
   insert into ledger(kid_id, amount, reason) values (a, 100, 'adjustment'), (b, 100, 'adjustment');
 
-  -- buy_item
-  insert into shop_items(name, price, stock, stock_scope, per_kid_limit) values ('__test_s1', 10, 1, 'shared', 5) returning id into s1;
-  insert into shop_items(name, price, stock, stock_scope, per_kid_limit) values ('__test_s2', 10, 5, 'shared', 1) returning id into s2;
-  insert into shop_items(name, price, stock, stock_scope) values ('__test_pk', 10, 2, 'per_kid') returning id into pk;
-  insert into shop_items(name, price, stock, stock_scope) values ('__test_pricey', 1000, 9, 'shared') returning id into pricey;
+  -- buy_cart
+  insert into shop_items(name, price, stock, per_kid_limit) values ('__test_s1', 10, 1, 5) returning id into s1;
+  insert into shop_items(name, price, stock, per_kid_limit) values ('__test_s2', 10, 5, 2) returning id into s2;
+  insert into shop_items(name, price, stock) values ('__test_pricey', 1000, 9) returning id into pricey;
+  insert into shop_items(name, price, stock, active) values ('__test_off', 1, 9, false) returning id into off;
 
-  pid := (buy_item(a, s1)->>'purchase_id')::uuid;
-  assert pid is not null, 'a buys last shared s1';
-  assert buy_item(b, s1)->>'reason' = 'sold_out', 'shared pool exhausted for b';
-  assert (buy_item(a, s2)->>'ok')::bool, 'a buys s2';
-  assert buy_item(a, s2)->>'reason' = 'limit', 'per_kid_limit enforced on shared item';
-  assert (buy_item(a, pk)->>'ok')::bool and (buy_item(a, pk)->>'ok')::bool, 'a buys per_kid twice';
-  assert buy_item(a, pk)->>'reason' = 'limit', 'per_kid stock enforced';
-  assert (buy_item(b, pk)->>'ok')::bool, 'per_kid stock is separate for b';
-  assert buy_item(a, pricey)->>'reason' = 'no_coins', 'balance enforced';
+  assert (buy_cart(a, array[s1, s2, s2])->>'cost')::int = 30, 'a buys a mixed cart';
+  assert buy_cart(b, array[s1])->>'reason' = 'sold_out', 'stock is one pool for all kids';
+  assert buy_cart(a, array[s2])->>'reason' = 'limit', 'per_kid_limit counts earlier purchases';
+  assert buy_cart(b, array[s2, s2, s2])->>'reason' = 'limit', 'per_kid_limit counts pieces in the cart';
+  assert buy_cart(b, array[s2, pricey])->>'reason' = 'no_coins', 'balance checked against the cart total';
+  assert buy_cart(b, array[off])->>'reason' = 'not_found', 'inactive item refused';
+  assert buy_cart(b, array[-1])->>'reason' = 'not_found', 'unknown item refused';
+  assert not exists (select 1 from purchases where kid_id = b), 'refused carts write nothing';
   select sum(amount) into bal_a from ledger where kid_id = a;
-  assert bal_a = 60, format('a spent 40, balance %s', bal_a);
+  assert bal_a = 70, format('a spent 30, balance %s', bal_a);
 
   -- cancel_purchase refunds and frees the stock
+  select id into pid from purchases where kid_id = a and item_id = s1;
   assert (cancel_purchase(pid)->>'ok')::bool, 'cancel s1';
   assert not (cancel_purchase(pid)->>'ok')::bool, 'cancel twice refused';
   select sum(amount) into bal_a from ledger where kid_id = a;
-  assert bal_a = 70, format('refund booked, balance %s', bal_a);
-  assert (buy_item(b, s1)->>'ok')::bool, 'cancelled purchase frees shared stock';
+  assert bal_a = 80, format('refund booked, balance %s', bal_a);
+  assert (buy_cart(b, array[s1])->>'ok')::bool, 'cancelled purchase frees stock';
+  select id into pid from purchases where kid_id = a and item_id = s2 limit 1;
+  update purchases set status = 'requested' where id = pid;
+  assert (cancel_purchase(pid)->>'ok')::bool, 'requested voucher can be cancelled';
 
   -- claim_day
   insert into days(date, day_type, chapter_text, secret, base_coins) values ('1999-12-01', 'standard', 't', '__test_std', 7) returning id into std;

@@ -8,13 +8,16 @@ from lib.auth import hash_pin, valid_kid_pin
 sb, cfg = client()
 data = json.loads((pathlib.Path(__file__).resolve().parent.parent / "content" / "days.json").read_text())
 
-# Validate before --reset so a missing PIN can't leave an empty database behind.
+# Validate before --reset so bad content can't leave an empty database behind.
 # Names match case-insensitively, so "ISABEL" in secrets.toml covers "Isabel" in days.json.
 secret_pins = {name.casefold(): str(pin) for name, pin in cfg.get("kid_pins", {}).items()}
 pins = {k["name"]: secret_pins.get(k["name"].casefold(), "") for k in data["kids"]}
 bad = [name for name, pin in pins.items() if not valid_kid_pin(pin)]
 if bad:
     sys.exit(f"Missing or invalid PIN for {bad}: add a 4-digit entry per kid under [kid_pins] in .streamlit/secrets.toml")
+old_scope = [i["name"] for i in data.get("shop_items", []) if "stock_scope" in i]
+if old_scope:
+    sys.exit(f"stock_scope is gone; remove it from {old_scope}. stock now counts pieces for all kids together.")
 
 if "--reset" in sys.argv:
     for t in ["ledger", "purchases", "coop_solves", "claims", "shop_items", "days", "kids"]:
