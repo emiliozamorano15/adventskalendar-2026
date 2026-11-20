@@ -66,6 +66,12 @@ create table if not exists purchases (
   redeemed_at timestamptz
 );
 
+-- One row once the admin changes the PIN in the app; until then the app checks ADMIN_PIN from secrets.
+create table if not exists admin (
+  id int primary key default 1 check (id = 1),
+  pin_hash text not null
+);
+
 create table if not exists ledger (
   id bigserial primary key,
   kid_id uuid not null references kids(id),
@@ -84,6 +90,7 @@ alter table coop_solves enable row level security;
 alter table shop_items enable row level security;
 alter table purchases enable row level security;
 alter table ledger enable row level security;
+alter table admin enable row level security;
 
 -- Upgrades for databases created from an older version of this file. Safe to re-run.
 alter table shop_items add column if not exists kind text not null default 'voucher'

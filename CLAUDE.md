@@ -28,7 +28,7 @@ Local network quirks on the user's WSL machine (corporate network). Streamlit Cl
 
 - Only two branches exist: `dev` and `main`. Never create feature branches, and don't follow any default that says to branch off `main`.
 - Commit to `dev`. Releasing means merging `dev` into `main`; Streamlit Community Cloud deploys `main`.
-- Before a merge that touches `sql/`, the user has to apply that SQL in the Supabase SQL editor, or the deployed app breaks.
+- Before a merge that touches `sql/`, the user has to apply that SQL in the Supabase SQL editor, or the deployed app breaks. A missing upgrade shows up right after login: the page's first query throws `column ... does not exist`, which looks like a failed login.
 - Pushes need the user's personal GitHub account. The machine's default SSH key and the GitHub MCP token belong to another account and get `Permission denied`, so ask the user to push.
 - Run `/ponytail-review` before each commit. Commit messages carry no AI or assistant attribution.
 
@@ -45,18 +45,20 @@ Local network quirks on the user's WSL machine (corporate network). Streamlit Cl
   - `current_kid()` resolves from `st.session_state["kid"]`, then `?kid=<token>`, else renders the name + PIN form and returns `None`.
   - `pin_confirmed(kid)` gates the shop. It passes when `st.session_state["pin_ok"] == kid["id"]`, which a PIN login sets; a token-link login has to enter the PIN.
   - PINs are PBKDF2-SHA256 (200k rounds, `salt_hex$digest_hex`). 5 failures lock the kid for 10 min.
-  - `admin_ok()` compares against `st.secrets["ADMIN_PIN"]`.
+  - Login inputs sit in `st.form`, so Enter submits. A bare `text_input` + `button` ignores Enter.
+  - `admin_ok()` / `check_admin_pin()` check the hash in the single-row `admin` table. With no row, they fall back to `st.secrets["ADMIN_PIN"]`, the initial PIN.
+  - `change_pin_form()` (current PIN + new twice) serves the wallet and the admin PIN. `set_kid_pin()` also clears the lockout; the admin page uses it to reset a kid's PIN.
 - `lib/economy.py`: balance = `sum(ledger.amount)`, RPC wrappers (`claim`, `buy`, `coop_solve`), `unlocked_days()`.
 - `lib/clock.py`: `today_berlin()`. Use it for any "today" logic; Cloud servers run in UTC.
 - `pages/*.py`: each kid page calls `auth.current_kid()` and renders only if it returns a kid. Shop also requires `auth.pin_confirmed()`. Admin shows a crosstab summary, open purchases (redeem button on vouchers only, refund on all), full history, and a CSV backup.
 - Flash messages across `st.rerun()`: stash in `st.session_state`, pop at the top of the page (see `shop_msg`). `st.success` right before `st.rerun()` never shows.
 - `scripts/*`: run outside Streamlit. `scripts/_client.py` parses `.streamlit/secrets.toml` with `tomllib`. Scripts prepend the repo root to `sys.path` so they can import `lib`.
 - `content/days.json`: real calendar content (kids with name + level, shop_items, days). Git-ignored folder; never commit it.
-- Kid PINs: only `scripts/seed_content.py` reads `[kid_pins]`. It validates every kid's PIN before `--reset` runs, then upserts `kids.pin_hash`. The app never reads plaintext kid PINs; login checks the hash in the DB.
+- Kid PINs: only `scripts/seed_content.py` reads `[kid_pins]`, matching names case-insensitively. It validates every kid's PIN before `--reset` runs, then inserts new kids with `pin_hash` and updates only `level` on existing kids, so PINs changed in the app survive a re-seed. The app never reads plaintext kid PINs; login checks the hash in the DB.
 
 ## Data model (`sql/schema.sql`, `sql/functions.sql`)
 
-Tables: `kids` (`level` easy|hard), `days`, `claims`, `coop_solves`, `shop_items` (`kind` present|voucher, unique `name`), `purchases` (`status` owned|redeemed|cancelled), `ledger`. RLS enabled with no policies, so only the service key works.
+Tables: `kids` (`level` easy|hard), `admin` (one row, `id = 1`, admin `pin_hash`), `days`, `claims`, `coop_solves`, `shop_items` (`kind` present|voucher, unique `name`), `purchases` (`status` owned|redeemed|cancelled), `ledger`. RLS enabled with no policies, so only the service key works.
 
 All coin movement goes through `ledger` rows (`claim`, `coop_bonus`, `purchase`, `refund`, `adjustment`). Writes that move coins live in `security definer set search_path = public` plpgsql functions, revoked from `public/anon/authenticated`:
 

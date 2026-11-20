@@ -24,3 +24,7 @@ if kid:
     st.subheader("Historial")
     hist = economy.ledger(kid["id"])
     st.dataframe(pd.DataFrame(hist)[["created_at", "amount", "reason"]] if hist else pd.DataFrame(), hide_index=True)
+
+    st.subheader("Cambiar PIN")
+    auth.change_pin_form(lambda pin: auth.login_with_pin(kid["name"], pin)[1],
+                         lambda pin: auth.set_kid_pin(kid["id"], pin), four_digits=True)

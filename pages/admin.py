@@ -41,6 +41,23 @@ if auth.admin_ok():
 
     # TODO: adjust stock / coins (ledger 'adjustment' row)
 
+    st.subheader("PIN de los niños")
+    kids = {k["name"]: k["id"] for k in table("kids").select("id,name").order("name").execute().data}
+    with st.form("reset_pin", clear_on_submit=True):
+        name = st.selectbox("Niño/a", kids)
+        new_pin = st.text_input("PIN nuevo (4 cifras)", type="password", max_chars=4)
+        reset = st.form_submit_button("Restablecer PIN")
+    if reset:
+        if auth.valid_kid_pin(new_pin):
+            auth.set_kid_pin(kids[name], new_pin)
+            st.success(f"PIN de {name} restablecido y bloqueo quitado.")
+        else:
+            st.error("El PIN debe tener 4 cifras.")
+
+    st.subheader("PIN de administrador")
+    auth.change_pin_form(lambda pin: "" if auth.check_admin_pin(pin) else "PIN incorrecto.",
+                         auth.set_admin_pin, four_digits=False)
+
     st.subheader("Copia de seguridad")
     if st.button("Preparar export CSV"):
         buf = io.BytesIO()

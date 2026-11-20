@@ -1,4 +1,4 @@
-"""Identity: personal link token + 4-digit PIN, with lockout."""
+"""Identity: personal link token + 4-digit PIN, with lockout. Admin PIN lives in the DB once changed."""
 import hashlib, hmac, os
 from datetime import datetime, timedelta, timezone
 import streamlit as st
@@ -16,6 +16,13 @@ def _check_pin(pin: str, stored: str) -> bool:
     salt_hex, dig_hex = stored.split("$")
     dig = hashlib.pbkdf2_hmac("sha256", pin.encode(), bytes.fromhex(salt_hex), 200_000)
     return hmac.compare_digest(dig.hex(), dig_hex)
+
+def valid_kid_pin(pin: str) -> bool:
+    return len(pin) == 4 and pin.isascii() and pin.isdigit()
+
+def set_kid_pin(kid_id: str, pin: str) -> None:
+    """Store a new PIN and lift any lockout."""
+    table("kids").update({"pin_hash": hash_pin(pin), "failed_attempts": 0, "locked_until": None}).eq("id", kid_id).execute()
 
 def kid_by_token(token: str):
     rows = table("kids").select("*").eq("token", token).execute().data
@@ -54,9 +61,12 @@ def current_kid() -> dict | None:
             st.session_state["kid"] = kid
             return kid
     st.subheader("¿Quién eres?")
-    name = st.selectbox("Nombre", list_kid_names())
-    pin = st.text_input("PIN", type="password", max_chars=4)
-    if st.button("Entrar"):
+    # A form submits on Enter; a bare text_input + button ignores Enter.
+    with st.form("login"):
+        name = st.selectbox("Nombre", list_kid_names())
+        pin = st.text_input("PIN", type="password", max_chars=4)
+        submitted = st.form_submit_button("Entrar")
+    if submitted:
         kid, err = login_with_pin(name, pin)
         if kid:
             st.session_state["kid"] = kid
@@ -69,8 +79,10 @@ def pin_confirmed(kid: dict) -> bool:
     """PIN gate for the shop: a personal-link login alone can't spend coins."""
     if st.session_state.get("pin_ok") == kid["id"]:
         return True
-    pin = st.text_input("Tu PIN", type="password", max_chars=4)
-    if st.button("Abrir tienda"):
+    with st.form("shop_pin"):
+        pin = st.text_input("Tu PIN", type="password", max_chars=4)
+        submitted = st.form_submit_button("Abrir tienda")
+    if submitted:
         ok, err = login_with_pin(kid["name"], pin)
         if ok:
             st.session_state["pin_ok"] = kid["id"]
@@ -78,13 +90,45 @@ def pin_confirmed(kid: dict) -> bool:
         st.error(err)
     return False
 
+def check_admin_pin(pin: str) -> bool:
+    """The DB hash wins once the admin changed the PIN; until then ADMIN_PIN from secrets is the initial PIN."""
+    rows = table("admin").select("pin_hash").execute().data
+    if rows:
+        return _check_pin(pin, rows[0]["pin_hash"])
+    return hmac.compare_digest(pin.encode(), str(st.secrets["ADMIN_PIN"]).encode())
+
+def set_admin_pin(pin: str) -> None:
+    table("admin").upsert({"id": 1, "pin_hash": hash_pin(pin)}).execute()
+
 def admin_ok() -> bool:
     if st.session_state.get("is_admin"):
         return True
-    pin = st.text_input("PIN de administrador", type="password")
-    if st.button("Entrar como admin"):
-        if hmac.compare_digest(pin, str(st.secrets["ADMIN_PIN"])):
+    with st.form("admin_login"):
+        pin = st.text_input("PIN de administrador", type="password")
+        submitted = st.form_submit_button("Entrar como admin")
+    if submitted:
+        if check_admin_pin(pin):
             st.session_state["is_admin"] = True
             st.rerun()
         st.error("PIN incorrecto.")
     return False
+
+def change_pin_form(verify, save, four_digits: bool) -> None:
+    """Current PIN + new PIN twice. verify(pin) returns an error message or ''; save(pin) stores it."""
+    max_chars = 4 if four_digits else None
+    with st.form("change_pin", clear_on_submit=True):
+        old = st.text_input("PIN actual", type="password", max_chars=max_chars)
+        new = st.text_input("Nuevo PIN", type="password", max_chars=max_chars)
+        again = st.text_input("Repite el nuevo PIN", type="password", max_chars=max_chars)
+        submitted = st.form_submit_button("Cambiar PIN")
+    if not submitted:
+        return
+    if err := verify(old):
+        st.error(err)
+    elif not (valid_kid_pin(new) if four_digits else len(new) >= 4):
+        st.error("El PIN debe tener 4 cifras." if four_digits else "El PIN necesita al menos 4 caracteres.")
+    elif new != again:
+        st.error("Los PIN nuevos no coinciden.")
+    else:
+        save(new)
+        st.success("PIN cambiado.")

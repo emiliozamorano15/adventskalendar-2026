@@ -10,8 +10,8 @@ The UI is in Spanish. Dates follow the Europe/Berlin timezone.
 2. **Historia** shows every chapter up to today. The app never fetches future days from the database.
 3. The kid solves the riddle, finds the printed QR and scans it. The QR opens `?claim=<secret>`, and the `claim_day` database function books the coins once per kid per day. A code scanned before its date earns nothing.
 4. **Tienda** asks for the kid's PIN once per session, even after a personal-link login, so a sibling holding the link can't spend someone else's coins. `buy_item` checks balance and stock inside one transaction.
-5. **Monedero** shows the balance, the coin history and every purchase with its status.
-6. **Admin** (admin PIN) shows a purchase count per item and kid, the open purchases, and the full history. You mark a voucher as redeemed after the kid has used it, or cancel any open purchase with a refund. Presents need no step after purchase.
+5. **Monedero** shows the balance, the coin history and every purchase with its status. The kid can change their PIN here by typing the current one first.
+6. **Admin** (admin PIN) shows a purchase count per item and kid, the open purchases, and the full history. You mark a voucher as redeemed after the kid has used it, or cancel any open purchase with a refund. Presents need no step after purchase. You can also set a new PIN for a kid, which lifts a lockout, and change the admin PIN.
 
 The balance lives in a `ledger` table. Every coin movement (claim, co-op bonus, purchase, refund) adds one row, and the balance is the sum of those rows.
 
@@ -45,20 +45,25 @@ All secrets live in `.streamlit/secrets.toml`, which git ignores:
 
 ```toml
 APP_URL = "https://your-app.streamlit.app"   # base URL baked into every claim QR
-ADMIN_PIN = "000000"
+ADMIN_PIN = "000000"                          # initial admin PIN, see below
 
 [supabase]
 url = "https://your-project.supabase.co"
 service_key = "your-service-role-key"
 
 [kid_pins]
-"Ana" = "1234"      # one 4-digit PIN per kid, keyed by the name in content/days.json
+"Ana" = "1234"      # one initial 4-digit PIN per kid, keyed by the name in content/days.json
 "Martín" = "5678"   # quote names with accents or spaces
 ```
 
 Use the deployed URL for `APP_URL` before you print QR codes. Codes printed with `http://localhost:8501` only work on your own machine.
 
-Only the seed script reads `[kid_pins]`. It stores a salted hash of each PIN in the database, so after you change a PIN, run the seed again. The app itself reads `APP_URL`, `ADMIN_PIN` and `[supabase]`.
+Both PIN settings hold starting values only:
+
+- The seed script reads `[kid_pins]` when it creates a kid and stores a salted hash in the database. Name matching ignores case, so `"ISABEL"` covers `Isabel`. Running the seed again leaves existing PINs alone, so a PIN the kid or you changed in the app stays.
+- The app checks `ADMIN_PIN` until you change the admin PIN on the admin page. From then on it checks the hash in the database and ignores `ADMIN_PIN`.
+
+The app itself reads `APP_URL`, `ADMIN_PIN` and `[supabase]`.
 
 ### 3. Content
 
@@ -102,7 +107,7 @@ python scripts/seed_content.py           # add --reset to wipe all tables first
 streamlit run app.py
 ```
 
-Running the seed again updates kids, shop items and days in place. Existing day secrets stay, so QR codes you already printed keep working.
+Running the seed again updates kid levels, shop items and days in place. Existing day secrets stay, so QR codes you already printed keep working.
 
 ### 5. Print QR codes and links
 
@@ -123,7 +128,7 @@ Work happens on `dev`. To release, merge `dev` into `main`, and Cloud redeploys.
 
 ```
 app.py                  router: ?claim opens the claim page, otherwise the nav bar
-lib/auth.py             kid login (link token or PIN with lockout), shop PIN gate, admin PIN
+lib/auth.py             kid login (link token or PIN with lockout), shop PIN gate, PIN change and reset, admin PIN
 lib/db.py               cached Supabase client, table() and rpc() helpers
 lib/economy.py          balance, ledger, claim/buy/coop calls, unlocked days
 lib/clock.py            Europe/Berlin "today"
