@@ -1,5 +1,14 @@
 -- Run after schema.sql. Safe to re-run.
 
+-- Drop first: create or replace can't change a function's return type, and an older draft may have used
+-- another one. Nothing depends on these functions, and the revoke at the end runs after the new creates.
+drop function if exists claim_day(uuid, text);
+drop function if exists record_coop_solve(uuid, int);         -- pre-answer signature
+drop function if exists record_coop_solve(uuid, int, text);
+drop function if exists buy_item(uuid, int);                  -- single-item predecessor of buy_cart
+drop function if exists buy_cart(uuid, int[]);
+drop function if exists cancel_purchase(uuid);
+
 -- Claim a day by QR secret. Returns json {ok, reason, coins, day_id}.
 create or replace function claim_day(p_kid uuid, p_secret text)
 returns json language plpgsql security definer set search_path = public as $$
@@ -18,7 +27,6 @@ end $$;
 
 -- Check a co-op answer; once both kids solved it, pay the bonus to both exactly once.
 -- Returns json {ok, reason, bonus_paid, bonus}.
-drop function if exists record_coop_solve(uuid, int);   -- pre-answer signature
 create or replace function record_coop_solve(p_kid uuid, p_day int, p_answer text)
 returns json language plpgsql security definer set search_path = public as $$
 declare d days%rowtype; n int; k record; today date := (now() at time zone 'Europe/Berlin')::date;
@@ -44,7 +52,6 @@ end $$;
 -- Each item has `stock` pieces for all kids together and at most `per_kid_limit` per kid.
 -- Every check runs before the first insert, so a refused cart writes nothing.
 -- Returns json {ok, reason, item_id, cost}.
-drop function if exists buy_item(uuid, int);   -- single-item predecessor
 create or replace function buy_cart(p_kid uuid, p_items int[])
 returns json language plpgsql security definer set search_path = public as $$
 declare it record; bal int; cost int := 0;
