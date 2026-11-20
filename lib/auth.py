@@ -60,9 +60,23 @@ def current_kid() -> dict | None:
         kid, err = login_with_pin(name, pin)
         if kid:
             st.session_state["kid"] = kid
+            st.session_state["pin_ok"] = kid["id"]
             st.rerun()
         st.error(err)
     return None
+
+def pin_confirmed(kid: dict) -> bool:
+    """PIN gate for the shop: a personal-link login alone can't spend coins."""
+    if st.session_state.get("pin_ok") == kid["id"]:
+        return True
+    pin = st.text_input("Tu PIN", type="password", max_chars=4)
+    if st.button("Abrir tienda"):
+        ok, err = login_with_pin(kid["name"], pin)
+        if ok:
+            st.session_state["pin_ok"] = kid["id"]
+            st.rerun()
+        st.error(err)
+    return False
 
 def admin_ok() -> bool:
     if st.session_state.get("is_admin"):

@@ -50,9 +50,11 @@ create table if not exists shop_items (
   price int not null check (price > 0),
   stock int not null check (stock >= 0),
   stock_scope text not null check (stock_scope in ('per_kid','shared')),
-  per_kid_limit int not null default 1,
+  per_kid_limit int not null default 1,   -- shared scope only: max purchases per kid
+  kind text not null default 'voucher' check (kind in ('present','voucher')),
   active boolean not null default true
 );
+create unique index if not exists shop_items_name_idx on shop_items(name);   -- seed upserts on name
 
 create table if not exists purchases (
   id uuid primary key default gen_random_uuid(),
@@ -82,3 +84,7 @@ alter table coop_solves enable row level security;
 alter table shop_items enable row level security;
 alter table purchases enable row level security;
 alter table ledger enable row level security;
+
+-- Upgrades for databases created from an older version of this file. Safe to re-run.
+alter table shop_items add column if not exists kind text not null default 'voucher'
+  check (kind in ('present','voucher'));
