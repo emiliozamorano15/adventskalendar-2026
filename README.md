@@ -115,7 +115,9 @@ python scripts/print_kid_links.py  # personal login link per kid
 
 ## Deploy
 
-On Streamlit Community Cloud, point the app at repo `emiliozamorano15/adventskalendar-2026`, main file `app.py`, and paste the contents of `secrets.toml` into the Secrets box. Cloud installs dependencies from `requirements.txt`.
+On Streamlit Community Cloud, point the app at repo `emiliozamorano15/adventskalendar-2026`, branch `main`, main file `app.py`, and paste the contents of `secrets.toml` into the Secrets box. Cloud installs dependencies from `requirements.txt`.
+
+Work happens on `dev`. To release, merge `dev` into `main`, and Cloud redeploys. If the merge brings SQL changes, run `sql/schema.sql` and `sql/functions.sql` in Supabase first.
 
 ## Project layout
 

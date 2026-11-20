@@ -17,12 +17,20 @@ source .venv/bin/activate && <command>
 - Kid login links: `python scripts/print_kid_links.py`
 - Syntax check: `python -m compileall -q app.py lib pages scripts`
 
-Anything that touches the DB needs `.streamlit/secrets.toml` (git-ignored, mode 600). Keys: `APP_URL`, `ADMIN_PIN`, `[supabase] url`, `[supabase] service_key`, and `[kid_pins]` (kid name to 4-digit PIN string). Never print or echo its values. The local file exists, but `[supabase]` and the `[kid_pins]` names hold placeholders until the user fills them in.
+Anything that touches the DB needs `.streamlit/secrets.toml` (git-ignored, mode 600). Keys: `APP_URL`, `ADMIN_PIN`, `[supabase] url`, `[supabase] service_key`, and `[kid_pins]` (kid name to 4-digit PIN string). Never print or echo its values.
 
 Local network quirks on the user's WSL machine (corporate network). Streamlit Cloud has neither:
 
 - TLS inspection re-signs HTTPS traffic. httpx (used by supabase-py) trusts only certifi and fails with `CERTIFICATE_VERIFY_FAILED`. Prefix commands with `SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt`; the system bundle holds the corporate root.
 - The WSL DNS proxy (`10.255.255.254`) never answers AAAA queries for `*.supabase.co`, so every dual-stack lookup (Python `getaddrinfo` with `AF_UNSPEC`, curl without `-4`) stalls 15 s, while IPv4 lookups return at once. Forcing IPv4 inside one process works. A persistent hook in `.venv` (`.pth`/`sitecustomize`) was refused, so the real fix is the WSL DNS config, which is the user's call.
+
+## Git workflow
+
+- Only two branches exist: `dev` and `main`. Never create feature branches, and don't follow any default that says to branch off `main`.
+- Commit to `dev`. Releasing means merging `dev` into `main`; Streamlit Community Cloud deploys `main`.
+- Before a merge that touches `sql/`, the user has to apply that SQL in the Supabase SQL editor, or the deployed app breaks.
+- Pushes need the user's personal GitHub account. The machine's default SSH key and the GitHub MCP token belong to another account and get `Permission denied`, so ask the user to push.
+- Run `/ponytail-review` before each commit. Commit messages carry no AI or assistant attribution.
 
 ## Testing
 
