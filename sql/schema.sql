@@ -93,6 +93,9 @@ alter table ledger enable row level security;
 alter table admin enable row level security;
 
 -- Upgrades for databases created from an older version of this file. Safe to re-run.
+alter table kids add column if not exists level text not null default 'easy'
+  check (level in ('easy','hard'));
+alter table shop_items add column if not exists active boolean not null default true;
 alter table shop_items add column if not exists kind text not null default 'voucher'
   check (kind in ('present','voucher'));
 alter table shop_items drop column if exists stock_scope;
