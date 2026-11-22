@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The top version is the current one.
 
+## [0.2.1] - 2026-11-22
+
+### Added
+
+- `assets/family-portrait.png`, a cartoon family portrait (not shown in the app yet).
+
 ## [0.2.0] - 2026-11-22
 
 Already applied to the live Supabase project on 2026-11-22: `sql/schema.sql` and `sql/functions.sql`. `claim_day` and `record_coop_solve` gained a parameter, and `kid_state`, `adjust_coins` and `debug_reset_kid` are new.
