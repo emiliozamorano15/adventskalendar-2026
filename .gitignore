@@ -3,3 +3,7 @@ secrets.toml
 .env
 content/
 *.local.*
+__pycache__/
+.venv/
+qr_out/
+.DS_Store

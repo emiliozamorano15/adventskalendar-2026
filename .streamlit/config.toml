@@ -1,0 +1,7 @@
+[theme]
+base = "light"
+primaryColor = "#B3001B"            # Christmas red
+backgroundColor = "#FFFBF2"         # warm cream
+secondaryBackgroundColor = "#E6F0E8" # pale fir green
+textColor = "#1F3B2C"               # dark fir green
+headingFont = "serif"

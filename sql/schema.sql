@@ -48,20 +48,28 @@ create table if not exists shop_items (
   name text not null,
   description text,
   price int not null check (price > 0),
-  stock int not null check (stock >= 0),
-  stock_scope text not null check (stock_scope in ('per_kid','shared')),
-  per_kid_limit int not null default 1,
+  stock int not null check (stock >= 0),   -- pieces for all kids together
+  per_kid_limit int not null default 1,    -- max pieces per kid
+  kind text not null default 'voucher' check (kind in ('present','voucher')),
   active boolean not null default true
 );
+create unique index if not exists shop_items_name_idx on shop_items(name);   -- seed upserts on name
 
 create table if not exists purchases (
   id uuid primary key default gen_random_uuid(),
   kid_id uuid not null references kids(id),
   item_id int not null references shop_items(id),
   price_paid int not null,
-  status text not null default 'owned' check (status in ('owned','redeemed','cancelled')),
+  status text not null default 'owned' check (status in ('owned','requested','redeemed','cancelled')),
   purchased_at timestamptz not null default now(),
+  requested_at timestamptz,   -- kid asked to use the voucher; the admin confirms with redeemed
   redeemed_at timestamptz
+);
+
+-- One row once the admin changes the PIN in the app; until then the app checks ADMIN_PIN from secrets.
+create table if not exists admin (
+  id int primary key default 1 check (id = 1),
+  pin_hash text not null
 );
 
 create table if not exists ledger (
@@ -82,3 +90,18 @@ alter table coop_solves enable row level security;
 alter table shop_items enable row level security;
 alter table purchases enable row level security;
 alter table ledger enable row level security;
+alter table admin enable row level security;
+
+-- Upgrades for databases created from an older version of this file. Safe to re-run.
+alter table kids add column if not exists level text not null default 'easy'
+  check (level in ('easy','hard'));
+alter table shop_items add column if not exists active boolean not null default true;
+update shop_items set per_kid_limit = 1 where per_kid_limit is null;
+alter table shop_items alter column per_kid_limit set default 1, alter column per_kid_limit set not null;
+alter table shop_items add column if not exists kind text not null default 'voucher'
+  check (kind in ('present','voucher'));
+alter table shop_items drop column if exists stock_scope;
+alter table purchases add column if not exists requested_at timestamptz;
+alter table purchases drop constraint if exists purchases_status_check;
+alter table purchases add constraint purchases_status_check
+  check (status in ('owned','requested','redeemed','cancelled'));
