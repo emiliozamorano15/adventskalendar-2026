@@ -2,6 +2,24 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The top version is the current one.
 
+## [0.3.0] - 2026-11-22
+
+### Added
+
+- "Soy papá/mamá" link to Admin under the login form on the home page.
+- `scripts/make_qr.py` also writes `qr_out/qr_codes.pdf`: all claim codes sorted by day, six per A4 page, each labelled with the day and the hiding place. It refuses a placeholder `APP_URL`.
+
+### Fixed
+
+- The shop loaded its pictures one by one on a cold start (about 10 s), so a tap on "Añadir" seemed lost and a second tap put the item in the cart twice. Pictures now load in parallel (about 0.5 s), and every add shows a toast.
+
+### Changed
+
+- Harder riddles: easy and hard texts now differ every day, no text names its own answer, and the co-op halves no longer give the answer away. Hiding places, answers and story clues are unchanged. Applied to the live database; the texts are in `content/riddles.json` (git-ignored) for `content/days.json`.
+
+- Shop cards all have the same size: pictures are cropped to 16:9 on the server (cached), and the grid uses a fixed row height.
+- More coins, same or lower prices: 20 coins per day (was 10), 50 on 24 December, co-op bonus 15 (was 10), so up to 570 coins per kid instead of 280. Family activities cost 180 (was 220) with one per kid; everyday vouchers allow two per kid. Applied to the live database; update `content/days.json` the same way before you seed again.
+
 ## [0.2.1] - 2026-11-22
 
 ### Added

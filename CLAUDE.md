@@ -17,7 +17,7 @@ source .venv/bin/activate && <command>
 - Install/update deps: `uv pip install -r requirements.txt` (`requirements.txt` is the single dependency source; Streamlit Cloud reads it, so there is no pyproject or lock file)
 - Run app: `streamlit run app.py`
 - Seed DB: `python scripts/seed_content.py [--reset]`
-- Claim QR PNGs per day: `python scripts/make_qr.py` (writes `qr_out/`)
+- Claim QR codes: `python scripts/make_qr.py` (writes `qr_out/dia_NN.png` and the printable `qr_out/qr_codes.pdf`; refuses a placeholder `APP_URL`)
 - Kid login links: `python scripts/print_kid_links.py`
 - Syntax check: `python -m compileall -q app.py lib pages scripts`
 
