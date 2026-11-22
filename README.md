@@ -152,7 +152,7 @@ Write the calendar in `content/days.json`. Git ignores the whole `content/` fold
 
 An older version had a `stock_scope` key. Remove it: the seed refuses to run while an item still has one, and `stock` now counts the pieces for all kids together.
 
-**Days:** `date`, `day_type` (`standard`, `split`, `coop`, `finale`), `chapter_text`, `riddle_easy`, `riddle_hard`, `answer`, `coop_half_a`, `coop_half_b`, `base_coins` (default 10), `coop_bonus` (default 0). The database generates each day's QR `secret`. On co-op days, `answer` is what both kids must type; case and surrounding spaces don't matter.
+**Days:** `date`, `day_type` (`standard`, `split`, `coop`, `finale`), `chapter_text`, `riddle_easy`, `riddle_hard`, `answer`, `coop_half_a`, `coop_half_b`, `base_coins` (default 20; the live calendar pays 50 on 24 December), `coop_bonus` (default 0). The database generates each day's QR `secret`. On co-op days, `answer` is what both kids must type; case and surrounding spaces don't matter.
 
 Keys you leave out get the column default.
 
@@ -168,11 +168,11 @@ Running the seed again updates kid levels, shop items and days in place. Existin
 ### 5. Print QR codes and links
 
 ```bash
-python scripts/make_qr.py          # one PNG per day in qr_out/
+python scripts/make_qr.py          # qr_out/qr_codes.pdf to print (6 per A4 page, by day) + one PNG per day
 python scripts/print_kid_links.py  # personal login link per kid
 ```
 
-`qr_out/` is git-ignored. Keep it that way: anyone holding those images can claim every day's coins.
+Each code in the PDF shows the day and where to hide it; cut along the grey lines. The script stops while `APP_URL` is still a placeholder, because the address is printed into every code. `qr_out/` is git-ignored. Keep it that way: anyone holding those images can claim every day's coins.
 
 ## Deploy
 

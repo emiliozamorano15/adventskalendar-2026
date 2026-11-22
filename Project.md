@@ -55,10 +55,11 @@ Only about 24 spots plus a handful of extras for split days need to be hidden.
 - There are no streak or rivalry bonuses.
 ### 3.4 Coin economy (draft numbers to tune)
  
-- Base reward per day around 10 coins (slightly higher on split days, since those are harder to organise).
-- Co-op bonus around 10 extra coins per kid.
-- Total over the month is roughly 280 coins per kid.
-- Shop price tiers: small vouchers 20–40, medium 60–100, big 150–250.
+- Base reward 20 coins per day, 50 on 24 December.
+- Co-op bonus 15 extra coins per kid on each of the 4 co-op days.
+- Total over the month: up to 570 coins per kid (23 days × 20 + 50 on the 24th + 4 × 15 co-op).
+- Shop price tiers: candy 1, everyday vouchers 20–50 (up to 2 per kid), treats 60–120, family activities 180 (one per kid). Buying one of everything would cost about three times a kid's coins, so they still choose.
+- A kid can afford a first voucher on day 1.
 - Aim: each kid can afford several small items and one or two big ones, but not everything. A saving-goal progress bar in *Mis cosas* would make saving visible (not built yet).
 - The final numbers should be checked against the list of vouchers once the content is written.
 ### 3.5 Shop, vouchers and presents

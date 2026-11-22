@@ -18,6 +18,8 @@ def show_day(day: dict, found: bool) -> None:
 
 st.image("assets/banner.png", width="stretch")   # placeholder: drop your own image in at the same path
 kid = auth.current_kid()
+if not kid:   # the parent starts here too
+    st.page_link("pages/admin.py", label="Soy papá/mamá", icon=":material/lock:")
 if kid:
     state = economy.state(kid["id"])
     ui.header("Calendario", kid, state["balance"])

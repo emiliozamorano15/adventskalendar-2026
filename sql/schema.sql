@@ -23,7 +23,7 @@ create table if not exists days (
   coop_half_a text,
   coop_half_b text,
   secret text not null unique default encode(gen_random_bytes(6), 'hex'),
-  base_coins int not null default 10,
+  base_coins int not null default 20,
   coop_bonus int not null default 0
 );
 
@@ -108,6 +108,7 @@ alter table shop_items add column if not exists image_url text;
 -- Tables created before these defaults existed have none, so new kids and days from the seed failed.
 alter table kids alter column token set default encode(gen_random_bytes(24), 'hex');
 alter table days alter column secret set default encode(gen_random_bytes(6), 'hex');
+alter table days alter column base_coins set default 20;
 alter table purchases add column if not exists requested_at timestamptz;
 alter table purchases drop constraint if exists purchases_status_check;
 alter table purchases add constraint purchases_status_check
