@@ -152,7 +152,7 @@ Write the calendar in `content/days.json`. Git ignores the whole `content/` fold
 
 An older version had a `stock_scope` key. Remove it: the seed refuses to run while an item still has one, and `stock` now counts the pieces for all kids together.
 
-**Days:** `date`, `day_type` (`standard`, `split`, `coop`, `finale`), `chapter_text`, `riddle_easy`, `riddle_hard`, `answer`, `coop_half_a`, `coop_half_b`, `base_coins` (default 20; the live calendar pays 50 on 24 December), `coop_bonus` (default 0). The database generates each day's QR `secret`. On co-op days, `answer` is what both kids must type; case and surrounding spaces don't matter.
+**Days:** `date`, `day_type` (`standard`, `split`, `coop`, `finale`), `chapter_text`, `riddle_easy`, `riddle_hard`, `answer`, `coop_half_a`, `coop_half_b`, `base_coins` (default 20; the live calendar pays 50 on 24 December), `coop_bonus` (default 0). The database generates each day's QR `secret`. On co-op days, the first kid in alphabetical order sees `coop_half_a` and the other `coop_half_b`; `answer` is what both must type (case and surrounding spaces don't matter). Once both got it right, each gets `coop_bonus`.
 
 Keys you leave out get the column default.
 
@@ -237,6 +237,5 @@ The shop pictures are thumbnails hotlinked from Wikimedia Commons, under the lic
 
 ## TODO
 
-- Co-op days: show half A or B to each kid and add the answer form. `economy.coop_solve(kid_id, day_id, answer)` and the database already check the answer.
 - Saving-goal progress bar in Mis cosas
 - Admin tool to adjust stock (coins are done: Admin > Niños)

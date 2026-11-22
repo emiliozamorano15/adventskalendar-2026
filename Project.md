@@ -282,7 +282,6 @@ The timeline starts mid-November, leaving about 18 days before 1 December.
 - Final coin numbers and the voucher catalogue with prices and stock.
 - Whether the repo is public or uses the one free private-app slot.
 - Whether QR codes are hidden all at once or placed the evening before.
-- Co-op days: the database checks answers already; the page with the two clue halves and the answer form is still to build.
 - Saving-goal progress bar in *Mis cosas*.
 - Whether to automate waking the app or just open it each morning.
 - What the big finale gift and its hiding place are.

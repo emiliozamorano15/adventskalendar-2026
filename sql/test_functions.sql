@@ -63,6 +63,7 @@ begin
   -- kid_state
   assert (kid_state(a)->>'balance')::int = (select sum(amount) from ledger where kid_id = a), 'kid_state balance';
   assert json_array_length(kid_state(a)->'claimed') = 1, 'kid_state claimed days';
+  assert (kid_state(a)->'coop_solved'->>0)::int = coop and (kid_state(a)->'coop_paid'->>0)::int = coop, 'kid_state co-op days';
   assert (select (x->>'remaining')::int from json_array_elements(kid_state(a)->'items') x
           where (x->>'id')::int = s2) = 4, 'kid_state remaining stock skips cancelled';
   assert (select (x->>'mine')::int from json_array_elements(kid_state(a)->'items') x

@@ -132,6 +132,8 @@ class LocalClient:
         return {
             "balance": self._balance(p_kid),
             "claimed": [c["day_id"] for c in self.t["claims"] if c["kid_id"] == p_kid],
+            "coop_solved": [s["day_id"] for s in self.t["coop_solves"] if s["kid_id"] == p_kid],
+            "coop_paid": [int(r["ref"]) for r in self.t["ledger"] if r["kid_id"] == p_kid and r["reason"] == "coop_bonus"],
             "items": [{**{k: i.get(k) for k in ("id", "name", "description", "price", "kind", "per_kid_limit", "image_url")},
                        "remaining": i["stock"] - sum(p["item_id"] == i["id"] for p in open_),
                        "mine": sum(p["item_id"] == i["id"] and p["kid_id"] == p_kid for p in open_)}
