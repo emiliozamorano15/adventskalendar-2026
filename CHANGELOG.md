@@ -2,6 +2,15 @@
 
 All notable changes to this project are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow [Semantic Versioning](https://semver.org/). The top version is the current one.
 
+## [0.4.0] - 2026-11-22
+
+`kid_state` returns two new fields; already applied to Supabase.
+
+### Added
+
+- Co-op days are playable: each kid sees one half of the clue, both type the team answer, and once both got it right each gets the co-op bonus. The card shows "Falta tu hermano/a" or "Resuelto en equipo".
+- Chapter texts for all 24 days (live database; copy in `content/chapters.json`, git-ignored).
+
 ## [0.3.0] - 2026-11-22
 
 ### Added

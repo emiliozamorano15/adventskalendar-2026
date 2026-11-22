@@ -109,13 +109,15 @@ begin
   return json_build_object('ok', true);
 end $$;
 
--- Everything a kid page needs in one round trip: balance, claimed day ids, the active shop items with
+-- Everything a kid page needs in one round trip: balance, claimed day ids, co-op days answered and paid, the active shop items with
 -- remaining stock and this kid's count, and the kid's non-cancelled purchases. Reads only.
 create or replace function kid_state(p_kid uuid)
 returns json language sql stable security definer set search_path = public as $$
   select json_build_object(
     'balance', (select coalesce(sum(amount), 0) from ledger where kid_id = p_kid),
     'claimed', (select coalesce(json_agg(day_id), '[]') from claims where kid_id = p_kid),
+    'coop_solved', (select coalesce(json_agg(day_id), '[]') from coop_solves where kid_id = p_kid),
+    'coop_paid', (select coalesce(json_agg(ref::int), '[]') from ledger where kid_id = p_kid and reason = 'coop_bonus'),
     'items', (select coalesce(json_agg(x order by x.price, x.id), '[]') from (
       select i.id, i.name, i.description, i.price, i.kind, i.per_kid_limit, i.image_url,
              i.stock - count(p.id) filter (where p.status <> 'cancelled') as remaining,

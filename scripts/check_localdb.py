@@ -27,6 +27,16 @@ r = db.rpc("claim_day", {"p_kid": kid, "p_secret": day["secret"], "p_today": "29
 assert db.rpc("claim_day", {"p_kid": kid, "p_secret": day["secret"], "p_today": "2999-12-31"}).execute().data["reason"] == "already"
 assert db.rpc("adjust_coins", {"p_kid": kid, "p_amount": -10**6, "p_note": ""}).execute().data["reason"] == "negative"
 assert db.rpc("adjust_coins", {"p_kid": kid, "p_amount": 0, "p_note": ""}).execute().data["reason"] == "zero"
+coop = next(d for d in db.t["days"] if d["day_type"] == "coop" and d["answer"])
+solve = lambda k, ans: db.rpc("record_coop_solve", {"p_kid": k, "p_day": coop["id"], "p_answer": ans, "p_today": "2999-12-31"}).execute().data
+assert solve(kid, "nope")["reason"] == "wrong"
+assert solve(kid, " " + coop["answer"].upper() + " ")["bonus_paid"] is False, "first solver waits"
+st = db.rpc("kid_state", {"p_kid": kid}).execute().data
+assert st["coop_solved"] == [coop["id"]] and st["coop_paid"] == [], st
+assert solve(other, coop["answer"])["bonus_paid"] is True, "second solver pays both"
+assert db.rpc("kid_state", {"p_kid": kid}).execute().data["coop_paid"] == [coop["id"]]
+assert solve(other, coop["answer"])["bonus_paid"] is False, "bonus once"
+bal_other = db.rpc("kid_state", {"p_kid": other}).execute().data["balance"]
 db.table("admin").upsert({"id": 1, "pin_hash": "x"}).execute()
 assert db.table("admin").select("pin_hash").execute().data == [{"pin_hash": "x"}]
 assert db.rpc("debug_reset_kid", {"p_kid": kid}).execute().data["ok"]
