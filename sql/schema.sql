@@ -96,6 +96,8 @@ alter table admin enable row level security;
 alter table kids add column if not exists level text not null default 'easy'
   check (level in ('easy','hard'));
 alter table shop_items add column if not exists active boolean not null default true;
+update shop_items set per_kid_limit = 1 where per_kid_limit is null;
+alter table shop_items alter column per_kid_limit set default 1, alter column per_kid_limit set not null;
 alter table shop_items add column if not exists kind text not null default 'voucher'
   check (kind in ('present','voucher'));
 alter table shop_items drop column if exists stock_scope;
