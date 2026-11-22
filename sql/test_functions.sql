@@ -56,6 +56,35 @@ begin
   assert not (record_coop_solve(b, coop, 'Reno')->>'bonus_paid')::bool, 'bonus paid once';
   assert (select count(*) from ledger where reason = 'coop_bonus' and ref = coop::text) = 2, 'one bonus row per kid';
 
+  -- p_today (debug mode) moves "today" for claims and co-op answers
+  assert (claim_day(b, '__test_fut', '2999-12-01')->>'ok')::bool, 'p_today unlocks a future day';
+  assert claim_day(b, '__test_std', '1999-11-30')->>'reason' = 'future', 'p_today in the past locks a day';
+
+  -- kid_state
+  assert (kid_state(a)->>'balance')::int = (select sum(amount) from ledger where kid_id = a), 'kid_state balance';
+  assert json_array_length(kid_state(a)->'claimed') = 1, 'kid_state claimed days';
+  assert (select (x->>'remaining')::int from json_array_elements(kid_state(a)->'items') x
+          where (x->>'id')::int = s2) = 4, 'kid_state remaining stock skips cancelled';
+  assert (select (x->>'mine')::int from json_array_elements(kid_state(a)->'items') x
+          where (x->>'id')::int = s2) = 1, 'kid_state counts this kid only';
+  assert not exists (select 1 from json_array_elements(kid_state(a)->'items') x where (x->>'id')::int = off),
+         'kid_state hides inactive items';
+  assert json_array_length(kid_state(a)->'purchases') = 1, 'kid_state hides cancelled purchases';
+  assert (select x::jsonb ? 'image_url' from json_array_elements(kid_state(a)->'items') x limit 1), 'kid_state sends image_url';
+
+  -- adjust_coins
+  select sum(amount) into bal_a from ledger where kid_id = a;
+  assert (adjust_coins(a, 5, ' bonus ')->>'balance')::int = bal_a + 5, 'adjust adds coins';
+  assert (select ref from ledger where kid_id = a and reason = 'adjustment' order by id desc limit 1) = 'bonus', 'note trimmed';
+  assert adjust_coins(a, 0, null)->>'reason' = 'zero', 'zero refused';
+  assert adjust_coins(a, -100000, null)->>'reason' = 'negative', 'balance never below zero';
+  assert adjust_coins(gen_random_uuid(), 5, null)->>'reason' = 'invalid', 'unknown kid refused';
+
+  -- debug_reset_kid
+  assert (debug_reset_kid(a)->>'ok')::bool, 'reset';
+  assert (kid_state(a)->>'balance')::int = 0 and json_array_length(kid_state(a)->'purchases') = 0, 'reset wipes a';
+  assert (kid_state(b)->>'balance')::int > 0, 'reset leaves b alone';
+
   raise notice 'functions.sql self-check OK';
 end $$;
 rollback;

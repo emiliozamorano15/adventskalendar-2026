@@ -2,17 +2,25 @@
 
 -- Drop first: create or replace can't change a function's return type, and an older draft may have used
 -- another one. Nothing depends on these functions, and the revoke at the end runs after the new creates.
-drop function if exists claim_day(uuid, text);
+drop function if exists claim_day(uuid, text);               -- pre-p_today signature
+drop function if exists claim_day(uuid, text, date);
 drop function if exists record_coop_solve(uuid, int);         -- pre-answer signature
-drop function if exists record_coop_solve(uuid, int, text);
+drop function if exists record_coop_solve(uuid, int, text);   -- pre-p_today signature
+drop function if exists record_coop_solve(uuid, int, text, date);
 drop function if exists buy_item(uuid, int);                  -- single-item predecessor of buy_cart
 drop function if exists buy_cart(uuid, int[]);
 drop function if exists cancel_purchase(uuid);
+drop function if exists kid_state(uuid);
+drop function if exists adjust_coins(uuid, int, text);
+drop function if exists debug_reset_kid(uuid);
+
+-- p_today: the app passes a date only in debug mode (DEBUG = true in secrets) to test other days.
+-- Null means today in Europe/Berlin. Only the service role can call these functions.
 
 -- Claim a day by QR secret. Returns json {ok, reason, coins, day_id}.
-create or replace function claim_day(p_kid uuid, p_secret text)
+create or replace function claim_day(p_kid uuid, p_secret text, p_today date default null)
 returns json language plpgsql security definer set search_path = public as $$
-declare d days%rowtype; today date := (now() at time zone 'Europe/Berlin')::date;
+declare d days%rowtype; today date := coalesce(p_today, (now() at time zone 'Europe/Berlin')::date);
 begin
   select * into d from days where secret = p_secret;
   if not found then return json_build_object('ok', false, 'reason', 'invalid'); end if;
@@ -27,9 +35,9 @@ end $$;
 
 -- Check a co-op answer; once both kids solved it, pay the bonus to both exactly once.
 -- Returns json {ok, reason, bonus_paid, bonus}.
-create or replace function record_coop_solve(p_kid uuid, p_day int, p_answer text)
+create or replace function record_coop_solve(p_kid uuid, p_day int, p_answer text, p_today date default null)
 returns json language plpgsql security definer set search_path = public as $$
-declare d days%rowtype; n int; k record; today date := (now() at time zone 'Europe/Berlin')::date;
+declare d days%rowtype; n int; k record; today date := coalesce(p_today, (now() at time zone 'Europe/Berlin')::date);
 begin
   select * into d from days where id = p_day and day_type = 'coop' for update;   -- serialises both kids
   if not found then return json_build_object('ok', false, 'reason', 'invalid'); end if;
@@ -101,5 +109,53 @@ begin
   return json_build_object('ok', true);
 end $$;
 
+-- Everything a kid page needs in one round trip: balance, claimed day ids, the active shop items with
+-- remaining stock and this kid's count, and the kid's non-cancelled purchases. Reads only.
+create or replace function kid_state(p_kid uuid)
+returns json language sql stable security definer set search_path = public as $$
+  select json_build_object(
+    'balance', (select coalesce(sum(amount), 0) from ledger where kid_id = p_kid),
+    'claimed', (select coalesce(json_agg(day_id), '[]') from claims where kid_id = p_kid),
+    'items', (select coalesce(json_agg(x order by x.price, x.id), '[]') from (
+      select i.id, i.name, i.description, i.price, i.kind, i.per_kid_limit, i.image_url,
+             i.stock - count(p.id) filter (where p.status <> 'cancelled') as remaining,
+             count(p.id) filter (where p.status <> 'cancelled' and p.kid_id = p_kid) as mine
+      from shop_items i left join purchases p on p.item_id = i.id
+      where i.active
+      group by i.id) x),
+    'purchases', (select coalesce(json_agg(x order by x.purchased_at desc), '[]') from (
+      select p.id, p.status, p.price_paid, p.purchased_at, p.requested_at, p.redeemed_at, i.name, i.kind
+      from purchases p join shop_items i on i.id = p.item_id
+      where p.kid_id = p_kid and p.status <> 'cancelled') x));
+$$;
+
+-- Admin coin correction: one 'adjustment' ledger row. Refuses 0 and anything that would push the
+-- balance below zero. Returns json {ok, reason, balance}.
+create or replace function adjust_coins(p_kid uuid, p_amount int, p_note text)
+returns json language plpgsql security definer set search_path = public as $$
+declare bal int;
+begin
+  perform 1 from kids where id = p_kid for update;   -- same lock as buy_cart
+  if not found then return json_build_object('ok', false, 'reason', 'invalid'); end if;
+  if coalesce(p_amount, 0) = 0 then return json_build_object('ok', false, 'reason', 'zero'); end if;
+  select coalesce(sum(amount), 0) into bal from ledger where kid_id = p_kid;
+  if bal + p_amount < 0 then return json_build_object('ok', false, 'reason', 'negative', 'balance', bal); end if;
+  insert into ledger(kid_id, amount, reason, ref) values (p_kid, p_amount, 'adjustment', nullif(btrim(p_note), ''));
+  return json_build_object('ok', true, 'balance', bal + p_amount);
+end $$;
+
+-- Debug mode only (the app shows it when DEBUG = true): wipe one kid's claims, co-op answers, purchases
+-- and coins so a test run starts from zero. Keeps the kid, the PIN and the content.
+create or replace function debug_reset_kid(p_kid uuid)
+returns json language plpgsql security definer set search_path = public as $$
+begin
+  delete from ledger where kid_id = p_kid;
+  delete from purchases where kid_id = p_kid;
+  delete from coop_solves where kid_id = p_kid;
+  delete from claims where kid_id = p_kid;
+  return json_build_object('ok', true);
+end $$;
+
 -- Lock the RPCs to the service role.
-revoke execute on function claim_day, record_coop_solve, buy_cart, cancel_purchase from public, anon, authenticated;
+revoke execute on function claim_day, record_coop_solve, buy_cart, cancel_purchase, kid_state, adjust_coins,
+  debug_reset_kid from public, anon, authenticated;

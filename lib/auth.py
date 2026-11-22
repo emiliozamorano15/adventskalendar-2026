@@ -28,8 +28,18 @@ def kid_by_token(token: str):
     rows = table("kids").select("*").eq("token", token).execute().data
     return rows[0] if rows else None
 
+@st.cache_data(ttl=600, show_spinner=False)
 def list_kid_names() -> list[str]:
     return [r["name"] for r in table("kids").select("name").order("name").execute().data]
+
+def log_in(kid: dict) -> None:
+    """Session login with PIN confirmed (PIN form, or the debug panel's kid switch)."""
+    st.session_state["kid"] = kid
+    st.session_state["pin_ok"] = kid["id"]
+
+def log_out() -> None:
+    for k in ("kid", "pin_ok", "cart"):
+        st.session_state.pop(k, None)
 
 def login_with_pin(name: str, pin: str) -> tuple[dict | None, str]:
     """Returns (kid, error_message)."""
@@ -60,17 +70,16 @@ def current_kid() -> dict | None:
         if kid:
             st.session_state["kid"] = kid
             return kid
-    st.subheader("¿Quién eres?")
+    st.header("¿Quién eres?", anchor=False)
     # A form submits on Enter; a bare text_input + button ignores Enter.
-    with st.form("login"):
-        name = st.selectbox("Nombre", list_kid_names())
-        pin = st.text_input("PIN", type="password", max_chars=4)
-        submitted = st.form_submit_button("Entrar")
+    with st.form("login", border=True):
+        name = st.segmented_control("Nombre", list_kid_names(), width="stretch")   # one tap on a phone
+        pin = st.text_input("PIN", type="password", max_chars=4, placeholder="••••")
+        submitted = st.form_submit_button("Entrar", type="primary", width="stretch")
     if submitted:
-        kid, err = login_with_pin(name, pin)
+        kid, err = login_with_pin(name, pin) if name else (None, "Elige tu nombre.")
         if kid:
-            st.session_state["kid"] = kid
-            st.session_state["pin_ok"] = kid["id"]
+            log_in(kid)
             st.rerun()
         st.error(err)
     return None
@@ -79,9 +88,10 @@ def pin_confirmed(kid: dict) -> bool:
     """PIN gate for the shop: a personal-link login alone can't spend coins."""
     if st.session_state.get("pin_ok") == kid["id"]:
         return True
-    with st.form("shop_pin"):
-        pin = st.text_input("Tu PIN", type="password", max_chars=4)
-        submitted = st.form_submit_button("Abrir tienda")
+    st.caption("Para gastar monedas, confirma que eres tú.")
+    with st.form("shop_pin", border=True):
+        pin = st.text_input("Tu PIN", type="password", max_chars=4, placeholder="••••")
+        submitted = st.form_submit_button("Continuar", type="primary", width="stretch")
     if submitted:
         ok, err = login_with_pin(kid["name"], pin)
         if ok:
@@ -103,9 +113,9 @@ def set_admin_pin(pin: str) -> None:
 def admin_ok() -> bool:
     if st.session_state.get("is_admin"):
         return True
-    with st.form("admin_login"):
+    with st.form("admin_login", border=True):
         pin = st.text_input("PIN de administrador", type="password")
-        submitted = st.form_submit_button("Entrar como admin")
+        submitted = st.form_submit_button("Entrar", type="primary", width="stretch")
     if submitted:
         if check_admin_pin(pin):
             st.session_state["is_admin"] = True
@@ -120,7 +130,7 @@ def change_pin_form(verify, save, four_digits: bool) -> None:
         old = st.text_input("PIN actual", type="password", max_chars=max_chars)
         new = st.text_input("Nuevo PIN", type="password", max_chars=max_chars)
         again = st.text_input("Repite el nuevo PIN", type="password", max_chars=max_chars)
-        submitted = st.form_submit_button("Cambiar PIN")
+        submitted = st.form_submit_button("Cambiar PIN", width="stretch")
     if not submitted:
         return
     if err := verify(old):

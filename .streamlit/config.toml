@@ -1,7 +1,17 @@
 [theme]
 base = "light"
-primaryColor = "#B3001B"            # Christmas red
-backgroundColor = "#FFFBF2"         # warm cream
-secondaryBackgroundColor = "#E6F0E8" # pale fir green
-textColor = "#1F3B2C"               # dark fir green
-headingFont = "serif"
+primaryColor = "#B3001B"             # Christmas red; white button text stays readable
+linkColor = "#B3001B"
+backgroundColor = "#FFFBF2"          # warm cream
+secondaryBackgroundColor = "#E6F0E8" # pale fir green: cards, inputs
+textColor = "#1F3B2C"                # dark fir green
+borderColor = "#D9D2BF"
+greenColor = "#2E7D4F"
+# Rounded, kid-friendly type from Google Fonts. Falls back to the system font while loading.
+font = "Nunito:https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap"
+headingFont = "Fredoka:https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&display=swap"
+baseRadius = "large"
+paddingTop = "1rem"                  # less empty space under the nav on a phone
+
+[client]
+toolbarMode = "minimal"              # hides the developer menu from the kids
