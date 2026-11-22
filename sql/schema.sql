@@ -51,7 +51,8 @@ create table if not exists shop_items (
   stock int not null check (stock >= 0),   -- pieces for all kids together
   per_kid_limit int not null default 1,    -- max pieces per kid
   kind text not null default 'voucher' check (kind in ('present','voucher')),
-  active boolean not null default true
+  active boolean not null default true,
+  image_url text                           -- shop card picture; null shows the kind emoji
 );
 create unique index if not exists shop_items_name_idx on shop_items(name);   -- seed upserts on name
 
@@ -60,9 +61,11 @@ create table if not exists purchases (
   kid_id uuid not null references kids(id),
   item_id int not null references shop_items(id),
   price_paid int not null,
+  -- owned: bought. requested: the kid wants to use the voucher now (the kid can undo it).
+  -- redeemed: voucher used, or present handed over, confirmed by the admin. cancelled: refunded.
   status text not null default 'owned' check (status in ('owned','requested','redeemed','cancelled')),
   purchased_at timestamptz not null default now(),
-  requested_at timestamptz,   -- kid asked to use the voucher; the admin confirms with redeemed
+  requested_at timestamptz,
   redeemed_at timestamptz
 );
 
@@ -101,6 +104,10 @@ alter table shop_items alter column per_kid_limit set default 1, alter column pe
 alter table shop_items add column if not exists kind text not null default 'voucher'
   check (kind in ('present','voucher'));
 alter table shop_items drop column if exists stock_scope;
+alter table shop_items add column if not exists image_url text;
+-- Tables created before these defaults existed have none, so new kids and days from the seed failed.
+alter table kids alter column token set default encode(gen_random_bytes(24), 'hex');
+alter table days alter column secret set default encode(gen_random_bytes(6), 'hex');
 alter table purchases add column if not exists requested_at timestamptz;
 alter table purchases drop constraint if exists purchases_status_check;
 alter table purchases add constraint purchases_status_check
