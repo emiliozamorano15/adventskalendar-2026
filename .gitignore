@@ -11,3 +11,4 @@ graphify-out/
 backups/
 # debug-mode copy of the database: answers, QR secrets, PIN hashes
 local_db/
+.claude/
